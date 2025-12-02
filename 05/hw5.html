@@ -1,0 +1,199 @@
+<html>
+  <head>
+    <style>
+      html, body { 
+        background-color:#000;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden !important;  
+      }
+    </style>
+    
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+
+    <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@latest/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@latest/examples/jsm/"
+      }
+    }
+    </script>
+
+    <script type="module">
+////////////////////////////////////////////////////////////////////////// IMPORTS
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+      import { AnaglyphEffect } from 'three/addons/effects/AnaglyphEffect.js';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';     
+      import {Pane} from 'https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.min.js';
+      import { VertexNormalsHelper } from 'three/addons/helpers/VertexNormalsHelper.js'; 
+
+      var renderer, controls, scene, camera, loader, pane, light, stats;
+
+      // stats.js widget
+      stats = new Stats();
+      document.body.appendChild( stats.domElement );
+
+      
+////////////////////////////////////////////////////////////////////////// MAIN
+      window.onload = function() {
+
+      scene = new THREE.Scene();
+
+      const fov = 75;
+      const ratio = window.innerWidth / window.innerHeight;
+      camera = new THREE.PerspectiveCamera(fov, ratio, 0.1, 1000);
+      camera.position.set(0, 10, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+
+      // setup lights
+      var ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+
+      var directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      directionalLight.position.set(10, 20, 10);
+      scene.add(directionalLight);
+
+      //
+///////////////////////////////////////////////////////////////////////// SETTINGS and HELPER for TWEAKPANE
+      //
+    window.SCENE = {
+  'anaglyph': false,
+  'poly': null,
+  'rotate_poly': false,
+
+  'blender': null,
+  'blender_helper': null,
+  'brick_old_material': null,
+
+  do_rotate_poly: function () {
+    window.SCENE.rotate_poly = !window.SCENE.rotate_poly;
+  },
+
+  change_material: function () {
+    if (!window.SCENE.brick_old_material) {
+      window.SCENE.brick_old_material = window.SCENE.blender.material.clone();
+      window.SCENE.blender.material = new THREE.MeshNormalMaterial();
+    } else {
+      window.SCENE.blender.material = window.SCENE.brick_old_material.clone();
+      window.SCENE.brick_old_material = null;
+    }
+  }
+};
+
+
+       pane = new Pane();
+      var sceneui = pane.addFolder({title: 'Scene'});
+     
+      sceneui.addBinding(directionalLight.position, 'x', {min:-100, max:100, label:'Light X'});
+      sceneui.addBinding(directionalLight.position, 'y', {min:-100, max:100, label:'Light Y'});
+      sceneui.addBinding(directionalLight.position, 'z', {min:-100, max:100, label:'Light Z'});
+      sceneui.addBinding(window.SCENE, 'anaglyph');
+
+
+      loader = new GLTFLoader();
+////////////////////////////////////////////////////////////////////////// POLY
+      loader.load( 'bapeBrickpoly.glb', function ( gltf ) {
+      scene.add( gltf.scene );
+
+      var poly = gltf.scenes[0].children[0];
+      poly.scale.x = 10;
+      poly.scale.y = 10;
+      poly.scale.z = 10;
+
+      window.SCENE.poly = poly;
+
+      var polyui = pane.addFolder({title: 'PolyCam Mesh'});
+      polyui.addBinding(window.SCENE.poly.material, 'wireframe');
+      polyui.addButton({title:'rotate!'}).on('click', () => {
+      window.SCENE.do_rotate_poly();
+      });
+
+      } );
+/////////////////////////////////////////////////////////////////////////// BLENDER
+     loader.load( 'bapeBrick.glb', function ( gltf ) {
+      scene.add( gltf.scene );
+
+      var brick = gltf.scenes[0].children[0];
+
+      brick.scale.x = 10;
+      brick.scale.y = 10;
+      brick.scale.z = 10;
+
+      brick.quaternion.w = 0;
+      brick.quaternion.x = 0;
+      brick.quaternion.y = 0;
+      brick.quaternion.z = 0;
+
+      brick.translateX(5);
+
+      var helper = new VertexNormalsHelper( brick, 0.1, 'blue' );
+      helper.visible = false;
+      scene.add(helper);
+
+      window.SCENE.blender = brick;
+      window.SCENE.blender_helper = helper;
+
+
+      var blenderui = pane.addFolder({ title: 'Blender Mesh'});
+      blenderui.addBinding(helper, 'visible', {label:'Show normals!'});
+      blenderui.addButton({ title: 'Change Material'})
+      .on('click', () => window.SCENE.change_material());
+
+      });
+
+
+      animate();
+        
+      };
+
+      function animate() {
+
+        requestAnimationFrame( animate );
+
+        // and here..
+        controls.update();
+        
+        stats.update();
+
+          
+          if (window.SCENE.poly) {
+            if (window.SCENE.rotate_poly) {
+            // TODO .. setup 180 degree quaternion
+              const q = new THREE.Quaternion();
+
+              q.set(0, 1, 0, 0);
+
+            window.SCENE.poly.quaternion.slerp( q, 0.01 );
+            } else {
+            // TODO reset quaternion to identity!
+              const q = new THREE.Quaternion();
+
+              q.set(0, 0, 0, 1);
+
+            window.SCENE.poly.quaternion.slerp( q, 0.01 );
+            }
+            }
+
+            if(window.SCENE.blender_helper) {
+              window.SCENE.blender_helper.update();
+            }
+        
+        renderer.render( scene, camera );
+
+
+
+      };
+    </script>
+  </head>
+  <body></body>
+</html>
