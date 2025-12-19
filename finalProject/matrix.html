@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>STL in 3D Cube Matrix</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    #hint {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      color: white;
+      background: rgba(0,0,0,0.45);
+      padding: 10px 12px;
+      border-radius: 12px;
+      font: 13px system-ui;
+      line-height: 1.35;
+      z-index: 10;
+    }
+  </style>
+
+  <script async src="https://unpkg.com/es-module-shims@1.8.2/dist/es-module-shims.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.164.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.164.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="hint">
+    <b>3D Cube Matrix</b><br/>
+    STL model embedded at origin<br/>
+    Drag to orbit • Scroll to zoom
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { STLLoader } from "three/addons/loaders/STLLoader.js";
+
+    const STL_FILE = "lightHouse.stl";
+
+    let scene, camera, renderer, controls;
+
+    function createCubeMatrix({
+      count = 7,        // cubes per axis (odd keeps center)
+      spacing = 35,     // distance between cubes
+      cubeSize = 6
+    } = {}) {
+      const half = Math.floor(count / 2);
+
+      const geo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x44ff88,
+        wireframe: true
+      });
+
+      const group = new THREE.Group();
+
+      for (let x = -half; x <= half; x++) {
+        for (let y = -half; y <= half; y++) {
+          for (let z = -half; z <= half; z++) {
+
+            // Skip the center cube so STL sits there
+            if (x === 0 && y === 0 && z === 0) continue;
+
+            const cube = new THREE.Mesh(geo, mat);
+            cube.position.set(
+              x * spacing,
+              y * spacing,
+              z * spacing
+            );
+
+            group.add(cube);
+          }
+        }
+      }
+
+      scene.add(group);
+    }
+
+    async function loadSTL() {
+      const loader = new STLLoader();
+      const geom = await loader.loadAsync(STL_FILE);
+
+      const mat = new THREE.MeshPhongMaterial({
+        color: 0xcccccc,
+        shininess: 80
+      });
+
+      const mesh = new THREE.Mesh(geom, mat);
+
+      // Center STL at origin
+      geom.computeBoundingBox();
+      const box = geom.boundingBox;
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      mesh.position.sub(center);
+
+      // Scale to fit inside matrix
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const desired = 60;
+      mesh.scale.setScalar(desired / maxDim);
+
+      scene.add(mesh);
+    }
+
+    function init() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(
+        65,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        5000
+      );
+      camera.position.set(200, 180, 200);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+      const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+      dir.position.set(300, 400, 300);
+      scene.add(dir);
+
+      // Optional helpers
+      const axes = new THREE.AxesHelper(120);
+      scene.add(axes);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Boot
+    init();
+    await loadSTL();
+    createCubeMatrix({ count: 7, spacing: 35, cubeSize: 6 });
+    animate();
+  </script>
+</body>
+</html>
